@@ -116,20 +116,7 @@ static std::string parse_commandline(int argc, char *argv[]) {
     }
 
     // Handle commandline options
-    if (vm.count("help") || vm.count("arguments")) {
-        auto ev = EXIT_SUCCESS;
-        // The user specified an argument. We don't accept any, so explain
-        // our usage.
-        if (vm.count("arguments")) {
-            for (auto& arg : vm["arguments"].as<std::vector<std::string>>()) {
-                std::cout << "Unrecognized argument: " << arg << std::endl;
-            }
-            ev = EXIT_FAILURE;
-        }
-        license_blurb();
-        std::cout << v_desc << std::endl;
-        exit(ev);
-    }
+	handleHelp();
 
     if (vm.count("quiet")) {
         cfg_quiet = true;
@@ -154,96 +141,18 @@ static std::string parse_commandline(int argc, char *argv[]) {
         cfg_supervise = vm["supervise"].as<std::string>();
     }
 
-    if (vm.count("weights")) {
-        cfg_weightsfile = vm["weights"].as<std::string>();
-    } else if (cfg_supervise.empty()) {
-        cfg_weightsfile = "weights.txt";
-    }
 
-    if (vm.count("threads")) {
-        int num_threads = vm["threads"].as<int>();
-        if (num_threads > cfg_max_threads) {
-            myprintf("Clamping threads to maximum = %d\n", cfg_max_threads);
-            cfg_num_threads = cfg_max_threads;
-        } else {
-            myprintf("Using %d thread(s).\n", num_threads);
-            cfg_num_threads = num_threads;
-        }
-        
-    }
-
-    if (vm.count("seed")) {
-        cfg_rng_seed = vm["seed"].as<std::uint64_t>();
-        if (cfg_rng_seed == 0) {
-          myprintf("Nonsensical options: RNG seed cannot be 0.\n");
-          exit(EXIT_FAILURE);
-        }
-
-        if (vm.count("threads") && cfg_num_threads > 1) {
-          myprintf("Nonsensical options: lczero loses deterministic property "
-                   "of the random seed when using multiple threads.\n");
-          exit(EXIT_FAILURE);
-        }
-
-        if (cfg_num_threads > 1) {
-            cfg_num_threads = 1;
-            myprintf("Using rng seed from cli, activating single thread mode!\n");
-        }
-        myprintf("RNG seed from cli: %llu\n", cfg_rng_seed);
-    }
-
-    if (vm.count("noponder")) {
-        cfg_allow_pondering = false;
-    }
-
-    if (vm.count("uci")) {
-        cfg_noinitialize = true;
-    }
-
-    if (vm.count("noise")) {
-        cfg_noise = true;
-    }
-
-    if (vm.count("randomize")) {
-        cfg_randomize = true;
-        // When cfg_randomize is on, we need an accurate estimate of
-        // how good/bad all moves are, so turn cfg_timemanage off.
-        cfg_timemanage = false;
-    }
-
-    if (vm.count("tempdecay")) {
-        cfg_root_temp_decay = vm["tempdecay"].as<int>();
-        if (cfg_root_temp_decay < 0) {
-            myprintf("Nonsensical options: The temperature decay constant cannot be assigned a negative value, since that would turn the search useless in later game.\n");
-            exit(EXIT_FAILURE);
-        }
-        cfg_randomize = true;
-        // Setting a value for temperature decay constant also activates --randomize.
-        // However, time management is not deactivated by --tempdecay
-    }
-
-    if (vm.count("playouts")) {
-        cfg_max_playouts = vm["playouts"].as<int>();
-        if (!vm.count("noponder")) {
-            myprintf("Nonsensical options: Playouts are restricted but "
-                     "thinking on the opponent's time is still allowed. "
-                     "Add --noponder if you want a weakened engine.\n");
-            exit(EXIT_FAILURE);
-        }
-        if (!vm.count("visits")) {
-            // If the user specifies playouts they probably
-            // do not want the default 800 visits.
-            cfg_max_visits = MAXINT_DIV2;
-        }
-    }
-
-    if (vm.count("visits")) {
-        cfg_max_visits = vm["visits"].as<int>();
-    }
-
-    if (vm.count("resignpct")) {
-        cfg_resignpct = vm["resignpct"].as<int>();
-    }
+	handleWeights();
+	handleThreads();
+	handleSeed();
+	handleNoponder;
+	handleUci();
+	handleNoise();
+	handleRandomize();
+	handleTempDecay();
+	handlePlayouts();
+	handleVisits();
+	handleResignpct();
 
 #ifdef USE_OPENCL
     if (vm.count("gpu")) {
@@ -265,6 +174,152 @@ static std::string parse_commandline(int argc, char *argv[]) {
     }
 
     return start;
+}
+
+void handleWeights()
+{
+	if (vm.count("weights")) {
+		cfg_weightsfile = vm["weights"].as<std::string>();
+	}
+	else if (cfg_supervise.empty()) {
+		cfg_weightsfile = "weights.txt";
+	}
+}
+
+void handleThreads()
+{
+	if (vm.count("threads")) {
+		int num_threads = vm["threads"].as<int>();
+		if (num_threads > cfg_max_threads) {
+			myprintf("Clamping threads to maximum = %d\n", cfg_max_threads);
+			cfg_num_threads = cfg_max_threads;
+		}
+		else {
+			myprintf("Using %d thread(s).\n", num_threads);
+			cfg_num_threads = num_threads;
+		}
+
+	}
+
+}
+
+void handleSeed()
+{
+	if (vm.count("seed")) {
+		cfg_rng_seed = vm["seed"].as<std::uint64_t>();
+		if (cfg_rng_seed == 0) {
+			myprintf("Nonsensical options: RNG seed cannot be 0.\n");
+			exit(EXIT_FAILURE);
+		}
+
+		if (vm.count("threads") && cfg_num_threads > 1) {
+			myprintf("Nonsensical options: lczero loses deterministic property "
+				"of the random seed when using multiple threads.\n");
+			exit(EXIT_FAILURE);
+		}
+
+		if (cfg_num_threads > 1) {
+			cfg_num_threads = 1;
+			myprintf("Using rng seed from cli, activating single thread mode!\n");
+		}
+		myprintf("RNG seed from cli: %llu\n", cfg_rng_seed);
+	}
+}
+
+void handleNoponder()
+{
+	if (vm.count("noponder")) {
+		cfg_allow_pondering = false;
+	}
+}
+void handleUci()
+{
+	if (vm.count("uci")) {
+		cfg_noinitialize = true;
+	}
+}
+void handleNoise()
+{
+	if (vm.count("noise")) {
+		cfg_noise = true;
+	}
+}
+
+void handleRandomize()
+{
+	if (vm.count("randomize")) {
+		cfg_randomize = true;
+		// When cfg_randomize is on, we need an accurate estimate of
+		// how good/bad all moves are, so turn cfg_timemanage off.
+		cfg_timemanage = false;
+	}
+}
+
+void handleVisits()
+{
+	if (vm.count("visits")) {
+		cfg_max_visits = vm["visits"].as<int>();
+	}
+}
+
+void handleTempDecay()
+{
+	if (vm.count("tempdecay")) {
+		cfg_root_temp_decay = vm["tempdecay"].as<int>();
+		if (cfg_root_temp_decay < 0) {
+			myprintf("Nonsensical options: The temperature decay constant cannot be assigned a negative value, since that would turn the search useless in later game.\n");
+			exit(EXIT_FAILURE);
+		}
+		cfg_randomize = true;
+		// Setting a value for temperature decay constant also activates --randomize.
+		// However, time management is not deactivated by --tempdecay
+	}
+
+}
+
+void handlePlayouts()
+{
+	if (vm.count("playouts")) {
+		cfg_max_playouts = vm["playouts"].as<int>();
+		if (!vm.count("noponder")) {
+			myprintf("Nonsensical options: Playouts are restricted but "
+				"thinking on the opponent's time is still allowed. "
+				"Add --noponder if you want a weakened engine.\n");
+			exit(EXIT_FAILURE);
+		}
+		if (!vm.count("visits")) {
+			// If the user specifies playouts they probably
+			// do not want the default 800 visits.
+			cfg_max_visits = MAXINT_DIV2;
+		}
+	}
+}
+
+void handleResignpct()
+{
+	if (vm.count("resignpct")) {
+		cfg_resignpct = vm["resignpct"].as<int>();
+	}
+
+}
+
+
+void handleHelp()
+{
+	if (vm.count("help") || vm.count("arguments")) {
+		auto ev = EXIT_SUCCESS;
+		// The user specified an argument. We don't accept any, so explain
+		// our usage.
+		if (vm.count("arguments")) {
+			for (auto& arg : vm["arguments"].as<std::vector<std::string>>()) {
+				std::cout << "Unrecognized argument: " << arg << std::endl;
+			}
+			ev = EXIT_FAILURE;
+		}
+		license_blurb();
+		std::cout << v_desc << std::endl;
+		exit(ev);
+	}
 }
 
 void test_pgn_parse() {
