@@ -53,6 +53,8 @@ private:
     std::string sgemm_tuners_from_line(std::string line, const int m,
                                        const int n, const int k,
                                        const int batch_size);
+
+	void fillConfiguration(std::vector<Configurations> configs);
 };
 
 #endif
